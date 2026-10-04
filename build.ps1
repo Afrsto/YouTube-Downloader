@@ -78,7 +78,8 @@ Write-Step "Installing build dependencies"
     "pyinstaller" `
     "yt-dlp" `
     "customtkinter" `
-    "pillow"
+    "pillow" `
+    "mutagen"
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 # --- Clean previous dist ---

@@ -1,11 +1,10 @@
 # UTF-8
 #
 # PE version resource for PyInstaller (--version-file).
-# Helps the binary look like a normal Windows app to heuristics.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 1, 0),
-    prodvers=(1, 0, 1, 0),
+    filevers=(1, 1, 0, 0),
+    prodvers=(1, 1, 0, 0),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,
@@ -21,12 +20,12 @@ VSVersionInfo(
           [
             StringStruct("CompanyName", "terryinc"),
             StringStruct("FileDescription", "YouTube Downloader"),
-            StringStruct("FileVersion", "1.0.1.0"),
+            StringStruct("FileVersion", "1.1.0.0"),
             StringStruct("InternalName", "YouTubeDownloader"),
             StringStruct("LegalCopyright", "Copyright (c) terryinc"),
             StringStruct("OriginalFilename", "YouTube Downloader.exe"),
             StringStruct("ProductName", "YouTube Downloader"),
-            StringStruct("ProductVersion", "1.0.1.0"),
+            StringStruct("ProductVersion", "1.1.0.0"),
           ],
         )
       ]

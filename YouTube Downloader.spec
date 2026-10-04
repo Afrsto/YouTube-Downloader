@@ -27,6 +27,8 @@ a = Analysis(
                 "PIL.Image",
                 "customtkinter",
                 "yt_dlp",
+                "mutagen",
+                "mutagen.mp4",
             ]
         )
     ),

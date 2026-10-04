@@ -27,7 +27,7 @@ import webbrowser
 from pathlib import Path
 
 # ── App identity / updates ────────────────────────────────────────────────────
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0"
 GITHUB_REPO = "Afrsto/YouTube-Downloader"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_UA = f"YouTube-Downloader/{APP_VERSION} (+https://github.com/{GITHUB_REPO})"
@@ -103,6 +103,7 @@ def _ensure_dependencies() -> None:
         ("yt_dlp", "yt-dlp"),
         ("customtkinter", "customtkinter"),
         ("PIL", "pillow"),
+        ("mutagen", "mutagen"),
     ]
     missing_pip = [pip for mod, pip in required if _pkg_missing(mod)]
     if not missing_pip:
@@ -124,7 +125,7 @@ def _ensure_dependencies() -> None:
             f"  {', '.join(missing_pip)}\n\n"
             f"Error: {e}\n\n"
             f"Try manually:\n"
-            f"  {sys.executable} -m pip install yt-dlp customtkinter pillow",
+            f"  {sys.executable} -m pip install yt-dlp customtkinter pillow mutagen",
         )
         sys.exit(1)
 
@@ -135,7 +136,7 @@ def _ensure_dependencies() -> None:
             "Packages are still missing after install:\n"
             f"  {', '.join(still)}\n\n"
             f"Try manually:\n"
-            f"  {sys.executable} -m pip install yt-dlp customtkinter pillow",
+            f"  {sys.executable} -m pip install yt-dlp customtkinter pillow mutagen",
         )
         sys.exit(1)
 
@@ -157,6 +158,15 @@ try:
 except ImportError:
     Image = None  # type: ignore
     _PIL_OK = False
+
+try:
+    from mutagen.mp4 import MP4, MP4Cover
+
+    _MUTAGEN_OK = True
+except ImportError:
+    MP4 = None  # type: ignore
+    MP4Cover = None  # type: ignore
+    _MUTAGEN_OK = False
 
 _YTDLP_OK = True
 _YTDLP_VER = getattr(yt_dlp.version, "__version__", "?")
@@ -563,6 +573,91 @@ class Downloader:
             )
         return quality, None
 
+    @staticmethod
+    def _vtt_to_lyrics(text: str) -> str:
+        """Strip WebVTT / SRT timing into plain lyrics lines."""
+        lines_out: list[str] = []
+        seen: set[str] = set()
+        for raw in (text or "").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if line.upper().startswith("WEBVTT"):
+                continue
+            if line.startswith("NOTE") or line.startswith("STYLE") or line.startswith("REGION"):
+                continue
+            if re.match(r"^\d+$", line):
+                continue
+            if re.search(r"\d{2}:\d{2}:\d{2}[\.,]\d{3}\s*-->", line):
+                continue
+            if re.search(r"\d{2}:\d{2}[\.,]\d{3}\s*-->", line):
+                continue
+            # Drop simple VTT tags
+            clean = re.sub(r"<[^>]+>", "", line).strip()
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            lines_out.append(clean)
+        return "\n".join(lines_out).strip()
+
+    def _find_subtitle_file(self, out_dir: str, dest_base: str) -> Path | None:
+        base = Path(out_dir)
+        patterns = [
+            f"{dest_base}*.vtt",
+            f"{dest_base}*.srt",
+            f"{dest_base}*.ttml",
+            f"{dest_base}*.srv3",
+        ]
+        found: list[Path] = []
+        for pat in patterns:
+            found.extend(base.glob(pat))
+        if not found:
+            return None
+        # Prefer non-auto if name doesn't contain .auto. / .en-orig heuristics — just newest
+        found.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return found[0]
+
+    def _embed_lyrics_m4a(self, m4a_path: str, lyrics: str, log) -> bool:
+        if not lyrics.strip():
+            return False
+        if not _MUTAGEN_OK or MP4 is None:
+            log("⚠ mutagen missing — cannot embed lyrics (pip install mutagen)")
+            return False
+        try:
+            audio = MP4(m4a_path)
+            audio["\xa9lyr"] = [lyrics]
+            audio.save()
+            return True
+        except Exception as e:
+            log(f"⚠ lyrics embed failed: {e}")
+            return False
+
+    def _embed_lyrics_after_download(
+        self, out_dir: str, dest_base: str, final: str, log
+    ) -> None:
+        sub = self._find_subtitle_file(out_dir, dest_base)
+        if not sub:
+            log("⚠ no lyrics/captions found")
+            return
+        try:
+            raw = sub.read_text(encoding="utf-8", errors="replace")
+        except Exception as e:
+            log(f"⚠ could not read captions: {e}")
+            return
+        lyrics = self._vtt_to_lyrics(raw)
+        if not lyrics:
+            log("⚠ captions empty after cleanup")
+            return
+        if self._embed_lyrics_m4a(final, lyrics, log):
+            log(f"── lyrics embedded ({sub.name})")
+        # Clean sidecar caption files for this download
+        try:
+            for p in Path(out_dir).glob(f"{dest_base}.*"):
+                if p.suffix.lower() in (".vtt", ".srt", ".ttml", ".srv3"):
+                    p.unlink(missing_ok=True)
+        except Exception:
+            pass
+
     def download(
         self,
         yt_url: str,
@@ -620,7 +715,12 @@ class Downloader:
             opts["format"] = selector
             opts["format_sort"] = sort
             opts["postprocessors"] = thumb_pps + meta_then_cover
-            log("── audio container: m4a (Explorer cover)")
+            # Captions → lyrics embedded after download (like thumbnail cover)
+            opts["writesubtitles"] = True
+            opts["writeautomaticsub"] = True
+            opts["subtitleslangs"] = ["en", "en-US", "en-GB", "ar", "a.*"]
+            opts["subtitlesformat"] = "vtt/best"
+            log("── audio container: m4a (Explorer cover + lyrics)")
         else:
             selector, _ = self._format_selector(fmt, quality)
             opts["format"] = selector
@@ -676,6 +776,10 @@ class Downloader:
                 final = str(matches[0])
             else:
                 raise RuntimeError(f"Download finished but file not found:\n{final}")
+
+        if fmt == "mp3":
+            prog(97)
+            self._embed_lyrics_after_download(out_dir, dest_base, final, log)
 
         prog(100)
         return final
