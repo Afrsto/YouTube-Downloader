@@ -1,0 +1,16 @@
+.venv/
+build/
+dist/
+installer/output/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.idea/
+.vscode/
+*.log
+Thumbs.db
+Desktop.ini
+Microsoft_WDSI_Submission_Guide_EN_AR.html
