@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">YouTube Downloader</string>
-    <string name="setup_title">YouTube Downloader Setup</string>
+    <string name="setup_title">YouTube Downloader</string>
     <string name="setup_subtitle">Welcome — install-style home for Android 9+</string>
-    <string name="setup_body">Paste a YouTube URL below, or share a video from the YouTube app to this app to open the download dialog.\n\nExtraction powered by NewPipe Extractor (open source).</string>
+    <string name="setup_body">Paste a YouTube URL below, or share a video from the YouTube app to this app to open the download dialog.</string>
     <string name="url_hint">https://www.youtube.com/watch?v=…</string>
     <string name="continue_download">Continue</string>
-    <string name="about">About</string>
-    <string name="telegram">Telegram</string>
-    <string name="discord_user">Discord User</string>
-    <string name="discord_server">Discord Server</string>
     <string name="download">Download</string>
     <string name="ok">OK</string>
     <string name="filename">Filename</string>
@@ -21,6 +17,6 @@
     <string name="loading">Loading stream info…</string>
     <string name="invalid_url">Please enter a valid YouTube URL</string>
     <string name="download_started">Download started</string>
-    <string name="about_body">YouTube Downloader for Android\nVersion 1.1.0\n\nShare a YouTube link to this app or paste a URL on the Setup home screen.\n\nUses NewPipe Extractor (GPL-3.0).\nGitHub: https://github.com/Afrsto/YouTube-Downloader</string>
+    <string name="extract_failed">YouTube blocked extraction — try again later or update the app.\n%1$s</string>
     <string name="channel_downloads">Downloads</string>
 </resources>

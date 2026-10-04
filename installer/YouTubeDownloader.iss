@@ -3,7 +3,7 @@
 ; PrivilegesRequired=lowest = per-user install (no UAC admin prompt).
 
 #define MyAppName "YouTube Downloader"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "terryinc"
 #define MyAppExeName "YouTube Downloader.exe"
 

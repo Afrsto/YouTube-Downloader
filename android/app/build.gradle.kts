@@ -11,8 +11,8 @@ android {
         applicationId = "com.afrsto.youtubedownloader"
         minSdk = 28
         targetSdk = 35
-        versionCode = 110
-        versionName = "1.1.0"
+        versionCode = 111
+        versionName = "1.1.1"
     }
 
     buildTypes {
@@ -58,5 +58,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.github.teamnewpipe:NewPipeExtractor:0.24.8")
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
+    // MP4/M4A metadata (cover + lyrics) for audio downloads
+    implementation("net.jthink:jaudiotagger:3.0.1")
 }

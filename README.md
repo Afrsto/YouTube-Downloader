@@ -32,7 +32,7 @@
 | **Size confirmation** | Estimated size with Yes / No before download |
 | **Smart fallback** | If 2K is missing, offers the highest available |
 | **Mandatory updates** | GitHub Releases — no “later” |
-| **Android APK** | Setup-style home + share-from-YouTube download UI (NewPipe Extractor) |
+| **Android APK** | Paste or share YouTube links · Audio embeds cover + lyrics (NewPipe Extractor) |
 
 ---
 
@@ -51,7 +51,8 @@
 
 1. Download the **`.apk`** from the latest release.
 2. Allow install from unknown sources if prompted.
-3. Open the app for the **Setup-style** home (paste a URL), **or** share a video from the YouTube app to **YouTube Downloader**.
+3. Open the app (paste a URL), **or** share a video from the YouTube app to **YouTube Downloader**.
+4. Choose Video / Audio / Captions, quality, then OK. Audio (M4A) embeds cover art and lyrics when captions are available.
 
 Android module source: [`android/`](android/) — GPL-3.0 obligations apply because of NewPipe Extractor. See [`android/README.md`](android/README.md).
 

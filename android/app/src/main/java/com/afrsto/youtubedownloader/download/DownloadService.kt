@@ -13,6 +13,8 @@ import android.os.IBinder
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
 import com.afrsto.youtubedownloader.R
+import com.afrsto.youtubedownloader.media.Captions
+import com.afrsto.youtubedownloader.media.M4aMetadata
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -31,8 +33,10 @@ class DownloadService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val url = intent?.getStringExtra(EXTRA_URL).orEmpty()
         val filename = intent?.getStringExtra(EXTRA_FILENAME) ?: "download.bin"
-        // threads reserved for future multi-range; single connection is reliable fallback
         intent?.getIntExtra(EXTRA_THREADS, 3)
+        val thumbUrl = intent?.getStringExtra(EXTRA_THUMB_URL).orEmpty()
+        val subtitleUrl = intent?.getStringExtra(EXTRA_SUBTITLE_URL).orEmpty()
+        val embedMeta = intent?.getBooleanExtra(EXTRA_EMBED_META, false) == true
 
         ensureChannel()
         val notification = buildNotification("Downloading $filename", 0, indeterminate = true)
@@ -44,7 +48,7 @@ class DownloadService : Service() {
 
         Thread {
             try {
-                download(url, filename)
+                download(url, filename, thumbUrl, subtitleUrl, embedMeta)
                 notifyDone(filename, ok = true)
             } catch (e: Exception) {
                 notifyDone("${e.message}", ok = false)
@@ -57,7 +61,13 @@ class DownloadService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun download(url: String, filename: String) {
+    private fun download(
+        url: String,
+        filename: String,
+        thumbUrl: String,
+        subtitleUrl: String,
+        embedMeta: Boolean
+    ) {
         val request = Request.Builder().url(url).get().build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
@@ -75,14 +85,44 @@ class DownloadService : Service() {
                         output.write(buf, 0, read)
                         done += read
                         if (total > 0) {
-                            val pct = ((done * 100) / total).toInt()
+                            val pct = ((done * 100) / total).toInt().coerceAtMost(90)
                             updateProgress(filename, pct)
                         }
                     }
                 }
             }
+
+            if (embedMeta && filename.endsWith(".m4a", ignoreCase = true)) {
+                updateProgress(filename, 92)
+                embedAudioExtras(outFile, thumbUrl, subtitleUrl)
+            }
+
+            updateProgress(filename, 98)
             persistToDownloads(outFile, filename)
             outFile.delete()
+        }
+    }
+
+    private fun embedAudioExtras(m4a: File, thumbUrl: String, subtitleUrl: String) {
+        val cover = if (thumbUrl.isNotBlank()) {
+            runCatching { fetchBytes(thumbUrl) }.getOrNull()
+        } else null
+        val lyrics = if (subtitleUrl.isNotBlank()) {
+            runCatching {
+                val raw = fetchBytes(subtitleUrl)?.toString(Charsets.UTF_8).orEmpty()
+                Captions.toLyrics(raw)
+            }.getOrNull()?.takeIf { it.isNotBlank() }
+        } else null
+        if (cover != null || lyrics != null) {
+            M4aMetadata.embed(m4a, cover, lyrics)
+        }
+    }
+
+    private fun fetchBytes(url: String): ByteArray? {
+        val request = Request.Builder().url(url).get().build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            return response.body?.bytes()
         }
     }
 
@@ -167,6 +207,9 @@ class DownloadService : Service() {
         const val EXTRA_URL = "url"
         const val EXTRA_FILENAME = "filename"
         const val EXTRA_THREADS = "threads"
+        const val EXTRA_THUMB_URL = "thumb_url"
+        const val EXTRA_SUBTITLE_URL = "subtitle_url"
+        const val EXTRA_EMBED_META = "embed_meta"
         private const val CHANNEL_ID = "downloads"
         private const val NOTIF_ID = 42
     }

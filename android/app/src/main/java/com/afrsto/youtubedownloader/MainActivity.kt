@@ -1,10 +1,7 @@
 package com.afrsto.youtubedownloader
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.afrsto.youtubedownloader.databinding.ActivityMainBinding
 
@@ -24,22 +21,5 @@ class MainActivity : AppCompatActivity() {
             }
             startActivity(DownloadActivity.intent(this, url))
         }
-
-        binding.btnAbout.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.about)
-                .setMessage(R.string.about_body)
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
-        }
-        binding.btnTelegram.setOnClickListener { open("https://t.me/X2_616") }
-        binding.btnDiscordUser.setOnClickListener {
-            open("https://discord.com/users/994817247061225633")
-        }
-        binding.btnDiscordServer.setOnClickListener { open("https://discord.gg/btRCeujadA") }
-    }
-
-    private fun open(url: String) {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 }

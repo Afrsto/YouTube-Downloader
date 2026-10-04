@@ -21,13 +21,14 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
 
 # ── App identity / updates ────────────────────────────────────────────────────
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 GITHUB_REPO = "Afrsto/YouTube-Downloader"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_UA = f"YouTube-Downloader/{APP_VERSION} (+https://github.com/{GITHUB_REPO})"
@@ -600,21 +601,79 @@ class Downloader:
             lines_out.append(clean)
         return "\n".join(lines_out).strip()
 
-    def _find_subtitle_file(self, out_dir: str, dest_base: str) -> Path | None:
+    def _subtitle_paths_from_info(self, info: dict | None) -> list[Path]:
+        """Collect on-disk caption paths recorded by yt-dlp in the info dict."""
+        paths: list[Path] = []
+        if not info:
+            return paths
+        requested = info.get("requested_subtitles") or {}
+        if isinstance(requested, dict):
+            for _lang, meta in requested.items():
+                if not isinstance(meta, dict):
+                    continue
+                fp = meta.get("filepath") or meta.get("file")
+                if fp and os.path.isfile(fp):
+                    paths.append(Path(fp))
+        for key in ("requested_downloads",):
+            entries = info.get(key) or []
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                for subkey in ("requested_subtitles",):
+                    subs = entry.get(subkey) or {}
+                    if not isinstance(subs, dict):
+                        continue
+                    for _lang, meta in subs.items():
+                        if isinstance(meta, dict):
+                            fp = meta.get("filepath") or meta.get("file")
+                            if fp and os.path.isfile(fp):
+                                paths.append(Path(fp))
+        return paths
+
+    def _find_subtitle_file(
+        self,
+        out_dir: str,
+        dest_base: str,
+        info: dict | None = None,
+    ) -> Path | None:
+        from_info = self._subtitle_paths_from_info(info)
+        if from_info:
+            from_info.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return from_info[0]
+
         base = Path(out_dir)
-        patterns = [
+        exts = (".vtt", ".srt", ".ttml", ".srv3")
+        found: list[Path] = []
+        for pat in (
             f"{dest_base}*.vtt",
             f"{dest_base}*.srt",
             f"{dest_base}*.ttml",
             f"{dest_base}*.srv3",
-        ]
-        found: list[Path] = []
-        for pat in patterns:
+        ):
             found.extend(base.glob(pat))
         if not found:
+            try:
+                cutoff = time.time() - 600
+                for p in base.iterdir():
+                    if (
+                        p.is_file()
+                        and p.suffix.lower() in exts
+                        and p.stat().st_mtime >= cutoff
+                    ):
+                        found.append(p)
+            except OSError:
+                pass
+        if not found:
             return None
-        # Prefer non-auto if name doesn't contain .auto. / .en-orig heuristics — just newest
-        found.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+        def _rank(p: Path) -> tuple[int, float]:
+            name = p.name.lower()
+            auto = 1 if (".auto." in name or name.endswith(".auto.vtt")) else 0
+            return (auto, -p.stat().st_mtime)
+
+        found.sort(key=_rank)
         return found[0]
 
     def _embed_lyrics_m4a(self, m4a_path: str, lyrics: str, log) -> bool:
@@ -633,9 +692,14 @@ class Downloader:
             return False
 
     def _embed_lyrics_after_download(
-        self, out_dir: str, dest_base: str, final: str, log
+        self,
+        out_dir: str,
+        dest_base: str,
+        final: str,
+        log,
+        info: dict | None = None,
     ) -> None:
-        sub = self._find_subtitle_file(out_dir, dest_base)
+        sub = self._find_subtitle_file(out_dir, dest_base, info=info)
         if not sub:
             log("⚠ no lyrics/captions found")
             return
@@ -650,11 +714,12 @@ class Downloader:
             return
         if self._embed_lyrics_m4a(final, lyrics, log):
             log(f"── lyrics embedded ({sub.name})")
-        # Clean sidecar caption files for this download
         try:
             for p in Path(out_dir).glob(f"{dest_base}.*"):
                 if p.suffix.lower() in (".vtt", ".srt", ".ttml", ".srv3"):
                     p.unlink(missing_ok=True)
+            if sub.exists() and sub.suffix.lower() in (".vtt", ".srt", ".ttml", ".srv3"):
+                sub.unlink(missing_ok=True)
         except Exception:
             pass
 
@@ -718,7 +783,7 @@ class Downloader:
             # Captions → lyrics embedded after download (like thumbnail cover)
             opts["writesubtitles"] = True
             opts["writeautomaticsub"] = True
-            opts["subtitleslangs"] = ["en", "en-US", "en-GB", "ar", "a.*"]
+            opts["subtitleslangs"] = ["all"]
             opts["subtitlesformat"] = "vtt/best"
             log("── audio container: m4a (Explorer cover + lyrics)")
         else:
@@ -733,6 +798,7 @@ class Downloader:
         log(f"── yt-dlp starting ({fmt_label} @ {quality})")
         prog(2)
 
+        info: dict | None = None
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(yt_url, download=True)
@@ -779,7 +845,9 @@ class Downloader:
 
         if fmt == "mp3":
             prog(97)
-            self._embed_lyrics_after_download(out_dir, dest_base, final, log)
+            self._embed_lyrics_after_download(
+                out_dir, dest_base, final, log, info=info
+            )
 
         prog(100)
         return final
