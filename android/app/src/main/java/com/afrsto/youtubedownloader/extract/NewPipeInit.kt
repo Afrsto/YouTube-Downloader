@@ -52,7 +52,7 @@ class OkHttpDownloader : Downloader() {
             )
         }
         val response = client.newCall(builder.build()).execute()
-        val body = response.body?.string().orEmpty()
+        val responseBody = response.body?.string().orEmpty()
         val headers = LinkedHashMap<String, List<String>>()
         response.headers.forEach { (name, value) ->
             headers[name] = listOf(value)
@@ -61,7 +61,7 @@ class OkHttpDownloader : Downloader() {
             response.code,
             response.message,
             headers,
-            body,
+            responseBody,
             response.request.url.toString()
         )
     }
