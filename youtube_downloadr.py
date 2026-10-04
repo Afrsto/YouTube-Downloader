@@ -23,13 +23,19 @@ import tempfile
 import threading
 import urllib.error
 import urllib.request
+import webbrowser
 from pathlib import Path
 
 # ── App identity / updates ────────────────────────────────────────────────────
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 GITHUB_REPO = "Afrsto/YouTube-Downloader"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_UA = f"YouTube-Downloader/{APP_VERSION} (+https://github.com/{GITHUB_REPO})"
+GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
+
+CONTACT_TELEGRAM = "https://t.me/X2_616"
+CONTACT_DISCORD_USER = "https://discord.com/users/994817247061225633"
+CONTACT_DISCORD_SERVER = "https://discord.gg/btRCeujadA"
 
 VIDEO_HEIGHTS = (144, 240, 360, 480, 720, 1080, 1440, 2160)
 AUDIO_BITRATES = (64, 96, 128, 160, 192, 256, 320)
@@ -182,6 +188,38 @@ C = {
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
+
+
+def center_window(win, width: int, height: int, master=None) -> None:
+    """Place a window at the center of its parent (or the screen)."""
+    try:
+        win.update_idletasks()
+    except Exception:
+        pass
+    width = int(width)
+    height = int(height)
+    x = y = None
+    if master is not None:
+        try:
+            master.update_idletasks()
+            mx = int(master.winfo_rootx())
+            my = int(master.winfo_rooty())
+            mw = int(master.winfo_width())
+            mh = int(master.winfo_height())
+            if mw > 1 and mh > 1:
+                x = mx + (mw - width) // 2
+                y = my + (mh - height) // 2
+        except Exception:
+            x = y = None
+    if x is None or y is None:
+        try:
+            sw = int(win.winfo_screenwidth())
+            sh = int(win.winfo_screenheight())
+            x = (sw - width) // 2
+            y = (sh - height) // 2
+        except Exception:
+            x, y = 100, 100
+    win.geometry(f"{width}x{height}+{max(0, x)}+{max(0, y)}")
 
 
 def _parse_version(text: str) -> tuple[int, ...]:
@@ -698,13 +736,13 @@ class ConfirmDialog(ctk.CTkToplevel):
     def __init__(self, master, title: str, message: str, yes="Yes", no="No"):
         super().__init__(master)
         self.title(title)
-        self.geometry("460x220")
         self.minsize(400, 180)
         self.configure(fg_color=C["bg"])
         self.transient(master)
         self.grab_set()
         self.result: bool | None = None
         self.protocol("WM_DELETE_WINDOW", self._no)
+        center_window(self, 460, 220, master)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -753,12 +791,12 @@ class UpdateRequiredDialog(ctk.CTkToplevel):
         self.master_app = master
         self.info = info
         self.title("Update required")
-        self.geometry("560x420")
         self.minsize(480, 360)
         self.configure(fg_color=C["bg"])
         self.transient(master)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._exit_app)
+        center_window(self, 560, 420, master)
         self._busy = False
 
         latest = info.get("latest") or "?"
@@ -874,11 +912,11 @@ class UpdateCheckFailedDialog(ctk.CTkToplevel):
         self.master_app = master
         self.result = "exit"  # retry | exit | continue
         self.title("Update check failed")
-        self.geometry("480x240")
         self.configure(fg_color=C["bg"])
         self.transient(master)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._exit)
+        center_window(self, 480, 240, master)
 
         ctk.CTkLabel(
             self, text="Could not check for mandatory updates",
@@ -928,6 +966,96 @@ class UpdateCheckFailedDialog(ctk.CTkToplevel):
         return self.result
 
 
+class AboutDialog(ctk.CTkToplevel):
+    """Professional About panel with contacts."""
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("About")
+        self.minsize(480, 420)
+        self.configure(fg_color=C["bg"])
+        self.transient(master)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        center_window(self, 520, 480, master)
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(
+            self, text="About",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=18),
+            text_color=C["acc"],
+        ).grid(row=0, column=0, sticky="w", padx=22, pady=(18, 4))
+
+        ctk.CTkLabel(
+            self,
+            text=f"YouTube Downloadr  v{APP_VERSION}",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=16),
+            text_color=C["txt"],
+        ).grid(row=1, column=0, sticky="w", padx=22, pady=(0, 2))
+
+        ctk.CTkLabel(
+            self,
+            text=(
+                "A focused Windows app for downloading YouTube media as M4A audio "
+                "or MP4 video. Powered by yt-dlp with ffmpeg for conversion, cover "
+                "art, and muxing.\n\n"
+                "Features:\n"
+                "• Full quality ladder (144p–4K / 64–320 kbps)\n"
+                "• Estimated size confirmation before download\n"
+                "• Smart fallback when a quality is unavailable\n"
+                "• Mandatory updates via GitHub Releases\n"
+                "• Built-in YouTube search"
+            ),
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            text_color=C["dim"], justify="left", wraplength=460, anchor="w",
+        ).grid(row=2, column=0, sticky="ew", padx=22, pady=(8, 6))
+
+        runtime = (
+            f"Runtime: yt-dlp {_YTDLP_VER}  ·  "
+            f"ffmpeg {'OK' if _FFMPEG_OK else 'missing'}  ·  "
+            f"Python {sys.version_info.major}.{sys.version_info.minor}"
+        )
+        ctk.CTkLabel(
+            self, text=runtime,
+            font=ctk.CTkFont(family="Consolas", size=11),
+            text_color=C["blu"], anchor="w",
+        ).grid(row=3, column=0, sticky="nw", padx=22, pady=(4, 4))
+
+        links = ctk.CTkFrame(self, fg_color="transparent")
+        links.grid(row=4, column=0, sticky="ew", padx=22, pady=(8, 4))
+        ctk.CTkButton(
+            links, text="Open GitHub", width=120, height=32, corner_radius=8,
+            fg_color=C["b3"], hover_color=C["bdr"], text_color=C["txt"],
+            command=lambda: webbrowser.open(GITHUB_URL),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            links, text="Telegram", width=100, height=32, corner_radius=8,
+            fg_color=C["acc"], hover_color=C["acc_h"], text_color="white",
+            command=lambda: webbrowser.open(CONTACT_TELEGRAM),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            links, text="Discord User", width=110, height=32, corner_radius=8,
+            fg_color=C["acc"], hover_color=C["acc_h"], text_color="white",
+            command=lambda: webbrowser.open(CONTACT_DISCORD_USER),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            links, text="Discord Server", width=120, height=32, corner_radius=8,
+            fg_color=C["acc"], hover_color=C["acc_h"], text_color="white",
+            command=lambda: webbrowser.open(CONTACT_DISCORD_SERVER),
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            self, text="Close", width=100, height=36, corner_radius=10,
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13),
+            fg_color=C["b3"], hover_color=C["bdr"], text_color=C["txt"],
+            command=self.destroy,
+        ).grid(row=5, column=0, sticky="e", padx=22, pady=(12, 18))
+
+        self.after(40, self.focus_force)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  Search dialog
 # ══════════════════════════════════════════════════════════════════════════════
@@ -936,12 +1064,12 @@ class SearchDialog(ctk.CTkToplevel):
         super().__init__(master)
         self.master_app = master
         self.title("Search YouTube")
-        self.geometry("720x560")
         self.minsize(560, 420)
         self.configure(fg_color=C["bg"])
         self.transient(master)
         self.grab_set()
         self.focus_force()
+        center_window(self, 720, 560, master)
 
         self._images: list = []
         self._busy = False
@@ -1178,9 +1306,9 @@ class SearchDialog(ctk.CTkToplevel):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("YouTube Downloadr  ·  yt-dlp")
-        self.geometry("880x700")
-        self.minsize(720, 580)
+        self.title(f"YouTube Downloadr v{APP_VERSION}  ·  yt-dlp")
+        self.geometry("880x740")
+        self.minsize(720, 620)
         self.configure(fg_color=C["bg"])
         self._set_window_icon()
 
@@ -1195,9 +1323,11 @@ class App(ctk.CTk):
         self.v_out = ctk.StringVar(value=str(Path.home() / "Downloads" / "YouTube"))
         self.v_prog = ctk.DoubleVar(value=0)
         self._update_ready = False
+        self._ready_logged = False
 
         self._build()
         self._on_fmt()
+        self.after(40, lambda: center_window(self, 880, 740))
         self.after(80, self._startup_check)
         self.after(120, self._run_mandatory_update_check)
 
@@ -1231,12 +1361,12 @@ class App(ctk.CTk):
         brand = ctk.CTkFrame(hdr, fg_color="transparent")
         brand.grid(row=0, column=0, sticky="w", padx=20, pady=12)
         ctk.CTkLabel(
-            brand, text="YouTube Downloadr",
+            brand, text=f"YouTube Downloadr v{APP_VERSION}",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=20),
             text_color=C["acc"],
         ).pack(side="left")
         ctk.CTkLabel(
-            brand, text=f"  v{APP_VERSION}  ·  yt-dlp",
+            brand, text="  ·  yt-dlp",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color=C["dim"],
         ).pack(side="left", pady=(4, 0))
@@ -1406,7 +1536,7 @@ class App(ctk.CTk):
             self, fg_color=C["b1"], corner_radius=14,
             border_width=1, border_color=C["bdr"],
         )
-        log_fr.grid(row=3, column=0, sticky="nsew", padx=16, pady=(6, 16))
+        log_fr.grid(row=3, column=0, sticky="nsew", padx=16, pady=(6, 8))
         log_fr.grid_columnconfigure(0, weight=1)
         log_fr.grid_rowconfigure(1, weight=1)
 
@@ -1434,6 +1564,42 @@ class App(ctk.CTk):
         ):
             tb.tag_config(tag, foreground=fg)
 
+        # Footer: About + contact Open buttons
+        foot = ctk.CTkFrame(self, fg_color="transparent")
+        foot.grid(row=4, column=0, sticky="ew", padx=16, pady=(0, 14))
+        ctk.CTkLabel(
+            foot, text="Contact",
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=C["dim"],
+        ).pack(side="left", padx=(2, 10))
+        ctk.CTkButton(
+            foot, text="About", width=80, height=30, corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            fg_color=C["b3"], hover_color=C["bdr"], text_color=C["txt"],
+            command=self._open_about,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            foot, text="Open Telegram", width=120, height=30, corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            fg_color=C["acc"], hover_color=C["acc_h"], text_color="white",
+            command=lambda: webbrowser.open(CONTACT_TELEGRAM),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            foot, text="Open Discord User", width=140, height=30, corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            fg_color=C["acc"], hover_color=C["acc_h"], text_color="white",
+            command=lambda: webbrowser.open(CONTACT_DISCORD_USER),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            foot, text="Open Discord Server", width=150, height=30, corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            fg_color=C["acc"], hover_color=C["acc_h"], text_color="white",
+            command=lambda: webbrowser.open(CONTACT_DISCORD_SERVER),
+        ).pack(side="left")
+
+    def _open_about(self):
+        AboutDialog(self)
+
     def _startup_check(self):
         parts = []
         if _YTDLP_OK:
@@ -1442,23 +1608,28 @@ class App(ctk.CTk):
         else:
             parts.append("yt-dlp missing ✗")
             self._status_lbl.configure(text_color=C["red"])
-            self._log("✗ yt-dlp not installed — run:  pip install yt-dlp")
+            if not self._ready_logged:
+                self._log("✗ yt-dlp not installed — run:  pip install yt-dlp")
 
         if _FFMPEG_OK:
             parts.append("ffmpeg ✓")
         else:
             parts.append("ffmpeg ✗")
-            self._log(
-                "⚠ ffmpeg not found — install ffmpeg and add it to PATH "
-                "(required for audio convert / cover embed / MP4 mux)"
-            )
+            if not self._ready_logged:
+                self._log(
+                    "⚠ ffmpeg not found — install ffmpeg and add it to PATH "
+                    "(required for audio convert / cover embed / MP4 mux)"
+                )
 
         py = f"{sys.version_info.major}.{sys.version_info.minor}"
         parts.append(f"Python {py}")
 
         self._status_lbl.configure(text="  ·  ".join(parts))
-        if _YTDLP_OK and _FFMPEG_OK:
+        if _YTDLP_OK and _FFMPEG_OK and not self._ready_logged:
             self._log("✓ ready — paste a YouTube URL (right-click) or Search Video")
+            self._ready_logged = True
+        elif not self._ready_logged:
+            self._ready_logged = True
 
     def _attach_entry_menu(self, entry: ctk.CTkEntry):
         """Right-click Paste / Copy / Select All on a CTkEntry."""
