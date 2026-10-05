@@ -1,0 +1,23 @@
+.venv/
+build/
+dist/
+installer/output/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.idea/
+.vscode/
+*.log
+Thumbs.db
+Desktop.ini
+Microsoft_WDSI_Submission_Guide_EN_AR.html
+.android-tools/
+dist_old_*/
+release-assets/*.exe
+release-assets/*.apk
+
+# Requires workflow OAuth scope to push; keep local only
+.github/
