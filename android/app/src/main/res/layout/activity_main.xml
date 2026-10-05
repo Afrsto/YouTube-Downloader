@@ -57,5 +57,58 @@
             android:backgroundTint="@color/accent"
             android:text="@string/continue_download"
             android:textColor="@color/text" />
+
+        <!-- Match design 4.png: TELEGRAM | ABOUT / DISCORD SERVER | DISCORD USER -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnTelegram"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:backgroundTint="@color/accent"
+                android:text="@string/telegram"
+                android:textColor="@color/text" />
+
+            <Button
+                android:id="@+id/btnAbout"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/about"
+                android:textColor="@color/text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnDiscordServer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:backgroundTint="@color/accent"
+                android:text="@string/discord_server"
+                android:textColor="@color/text" />
+
+            <Button
+                android:id="@+id/btnDiscordUser"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/accent"
+                android:text="@string/discord_user"
+                android:textColor="@color/text" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

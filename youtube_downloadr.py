@@ -28,7 +28,7 @@ import webbrowser
 from pathlib import Path
 
 # ── App identity / updates ────────────────────────────────────────────────────
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 GITHUB_REPO = "Afrsto/YouTube-Downloader"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_UA = f"YouTube-Downloader/{APP_VERSION} (+https://github.com/{GITHUB_REPO})"
@@ -780,11 +780,16 @@ class Downloader:
             opts["format"] = selector
             opts["format_sort"] = sort
             opts["postprocessors"] = thumb_pps + meta_then_cover
-            # Captions → lyrics embedded after download (like thumbnail cover)
+            # Captions → lyrics embed. Prefer a few langs (not "all") to avoid
+            # rate-limit 429s on obscure auto-translate codes like ab-ar.
+            # ignoreerrors=True is required so a failed caption fetch does not
+            # abort the audio download (only_download still raises on subs).
             opts["writesubtitles"] = True
             opts["writeautomaticsub"] = True
-            opts["subtitleslangs"] = ["all"]
+            opts["subtitleslangs"] = ["en", "en-US", "en-GB", "ar", "ar-SA"]
             opts["subtitlesformat"] = "vtt/best"
+            opts["sleep_interval_subtitles"] = 1
+            opts["ignoreerrors"] = True
             log("── audio container: m4a (Explorer cover + lyrics)")
         else:
             selector, _ = self._format_selector(fmt, quality)

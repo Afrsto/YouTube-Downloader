@@ -22,3 +22,6 @@ android/.cxx/
 dist_old_*/
 *.apk
 *.aab
+
+# Requires workflow OAuth scope to push; keep local only
+.github/

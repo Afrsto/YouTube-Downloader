@@ -1,13 +1,18 @@
 package com.afrsto.youtubedownloader
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.afrsto.youtubedownloader.databinding.ActivityDownloadBinding
 import com.afrsto.youtubedownloader.download.DownloadService
@@ -30,6 +35,16 @@ class DownloadActivity : AppCompatActivity() {
     private var captionOptions = listOf<StreamOption>()
     private var currentOptions = listOf<StreamOption>()
     private var selectedIndex = 0
+    private var pendingStartAfterPermission = false
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        if (pendingStartAfterPermission) {
+            pendingStartAfterPermission = false
+            launchDownloadService()
+        }
+    }
 
     data class StreamOption(
         val label: String,
@@ -130,6 +145,7 @@ class DownloadActivity : AppCompatActivity() {
     private fun refreshQualityList() {
         currentOptions = when (binding.typeGroup.checkedRadioButtonId) {
             R.id.typeVideo -> videoOptions
+            R.id.typeAudio -> audioOptions
             R.id.typeCaptions -> captionOptions
             else -> audioOptions
         }
@@ -182,12 +198,42 @@ class DownloadActivity : AppCompatActivity() {
         return subs.minByOrNull { score(it) }?.content
     }
 
+    private fun missingPermissions(): Array<String> {
+        val needed = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT <= 28) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                needed += Manifest.permission.WRITE_EXTERNAL_STORAGE
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                needed += Manifest.permission.POST_NOTIFICATIONS
+            }
+        }
+        return needed.toTypedArray()
+    }
+
     private fun startDownload() {
         val opt = currentOptions.getOrNull(selectedIndex)
         if (opt == null) {
             Toast.makeText(this, "No stream selected", Toast.LENGTH_SHORT).show()
             return
         }
+        val missing = missingPermissions()
+        if (missing.isNotEmpty()) {
+            pendingStartAfterPermission = true
+            permissionLauncher.launch(missing)
+            return
+        }
+        launchDownloadService()
+    }
+
+    private fun launchDownloadService() {
+        val opt = currentOptions.getOrNull(selectedIndex) ?: return
         val name = UrlUtils.sanitizeFilename(
             binding.filenameInput.text?.toString().orEmpty().ifBlank { "video" }
         )

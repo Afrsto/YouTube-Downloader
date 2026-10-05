@@ -10,6 +10,7 @@
         android:layout_height="56dp"
         android:background="@color/accent"
         android:gravity="center_vertical"
+        android:layoutDirection="ltr"
         android:orientation="horizontal"
         android:paddingHorizontal="8dp">
 
@@ -86,39 +87,49 @@
                 android:layout_height="1dp"
                 android:background="@color/text" />
 
+            <!-- LTR + Captions|Audio|Video avoids RTL mirror / phantom radio circles -->
             <RadioGroup
                 android:id="@+id/typeGroup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
+                android:layoutDirection="ltr"
                 android:orientation="horizontal">
 
                 <RadioButton
-                    android:id="@+id/typeVideo"
-                    android:layout_width="0dp"
+                    android:id="@+id/typeCaptions"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:layout_marginEnd="16dp"
+                    android:button="@android:drawable/btn_radio"
                     android:buttonTint="@color/text"
-                    android:text="@string/video"
+                    android:minWidth="0dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/captions"
                     android:textColor="@color/text" />
 
                 <RadioButton
                     android:id="@+id/typeAudio"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:layout_marginEnd="16dp"
+                    android:button="@android:drawable/btn_radio"
                     android:buttonTint="@color/text"
                     android:checked="true"
+                    android:minWidth="0dp"
+                    android:paddingEnd="4dp"
                     android:text="@string/audio"
                     android:textColor="@color/text" />
 
                 <RadioButton
-                    android:id="@+id/typeCaptions"
-                    android:layout_width="0dp"
+                    android:id="@+id/typeVideo"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:button="@android:drawable/btn_radio"
                     android:buttonTint="@color/text"
-                    android:text="@string/captions"
+                    android:minWidth="0dp"
+                    android:paddingEnd="4dp"
+                    android:text="@string/video"
                     android:textColor="@color/text" />
             </RadioGroup>
 

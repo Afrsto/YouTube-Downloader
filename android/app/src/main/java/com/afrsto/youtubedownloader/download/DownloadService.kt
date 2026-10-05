@@ -6,12 +6,15 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
 import android.provider.MediaStore
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.afrsto.youtubedownloader.R
 import com.afrsto.youtubedownloader.media.Captions
 import com.afrsto.youtubedownloader.media.M4aMetadata
@@ -126,40 +129,122 @@ class DownloadService : Service() {
         }
     }
 
+    private fun mimeFor(filename: String): String = when {
+        filename.endsWith(".mp4", true) -> "video/mp4"
+        filename.endsWith(".m4a", true) -> "audio/mp4"
+        filename.endsWith(".webm", true) -> "video/webm"
+        filename.endsWith(".opus", true) -> "audio/ogg"
+        filename.endsWith(".vtt", true) -> "text/vtt"
+        filename.endsWith(".srt", true) -> "application/x-subrip"
+        else -> "application/octet-stream"
+    }
+
     private fun persistToDownloads(file: File, filename: String) {
-        val mime = when {
-            filename.endsWith(".mp4", true) -> "video/mp4"
-            filename.endsWith(".m4a", true) -> "audio/mp4"
-            filename.endsWith(".webm", true) -> "video/webm"
-            filename.endsWith(".opus", true) -> "audio/ogg"
-            filename.endsWith(".vtt", true) -> "text/vtt"
-            filename.endsWith(".srt", true) -> "application/x-subrip"
-            else -> "application/octet-stream"
+        val mime = mimeFor(filename)
+        val errors = mutableListOf<String>()
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            if (tryMediaStoreDownloads(file, filename, mime)) return
+            errors += "Downloads provider"
+            if (tryMediaStoreMediaCollection(file, filename, mime)) return
+            errors += "Media collection"
+        } else if (hasLegacyWritePermission()) {
+            if (tryLegacyPublicDownloads(file, filename)) return
+            errors += "public Downloads"
         }
-        val collection = if (Build.VERSION.SDK_INT >= 29) {
-            MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        } else {
-            MediaStore.Files.getContentUri("external")
-        }
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, mime)
-            if (Build.VERSION.SDK_INT >= 29) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YouTubeDownloader")
+
+        if (tryAppExternalDownloads(file, filename)) return
+        throw IllegalStateException(
+            "Cannot save file (${errors.joinToString(", ").ifBlank { "no providers" }})"
+        )
+    }
+
+    private fun hasLegacyWritePermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= 29) return false
+        return ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun tryMediaStoreDownloads(file: File, filename: String, mime: String): Boolean {
+        if (Build.VERSION.SDK_INT < 29) return false
+        return runCatching {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                put(
+                    MediaStore.MediaColumns.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOWNLOADS + "/YouTubeDownloader"
+                )
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-        }
-        val resolver = contentResolver
-        val uri = resolver.insert(collection, values)
-            ?: throw IllegalStateException("Cannot create MediaStore entry")
-        resolver.openOutputStream(uri)?.use { out ->
+            val uri = contentResolver.insert(
+                MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                values
+            ) ?: return false
+            writeAndFinalize(uri, file, values)
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun tryMediaStoreMediaCollection(file: File, filename: String, mime: String): Boolean {
+        if (Build.VERSION.SDK_INT < 29) return false
+        return runCatching {
+            val isAudio = mime.startsWith("audio/")
+            val isVideo = mime.startsWith("video/")
+            val (collection, relativePath) = when {
+                isAudio -> MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY) to
+                    Environment.DIRECTORY_MUSIC + "/YouTubeDownloader"
+                isVideo -> MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY) to
+                    Environment.DIRECTORY_MOVIES + "/YouTubeDownloader"
+                else -> return false
+            }
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(collection, values) ?: return false
+            writeAndFinalize(uri, file, values)
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun writeAndFinalize(uri: Uri, file: File, pendingValues: ContentValues) {
+        contentResolver.openOutputStream(uri)?.use { out ->
             file.inputStream().use { input -> input.copyTo(out) }
         } ?: throw IllegalStateException("Cannot open output stream")
         if (Build.VERSION.SDK_INT >= 29) {
-            values.clear()
-            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
+            pendingValues.clear()
+            pendingValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            contentResolver.update(uri, pendingValues, null, null)
         }
+    }
+
+    private fun tryLegacyPublicDownloads(file: File, filename: String): Boolean {
+        return runCatching {
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "YouTubeDownloader"
+            )
+            if (!dir.exists() && !dir.mkdirs()) return false
+            val dest = File(dir, filename)
+            file.copyTo(dest, overwrite = true)
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun tryAppExternalDownloads(file: File, filename: String): Boolean {
+        return runCatching {
+            val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: filesDir
+            if (!dir.exists() && !dir.mkdirs()) return false
+            val dest = File(dir, filename)
+            file.copyTo(dest, overwrite = true)
+            true
+        }.getOrDefault(false)
     }
 
     private fun ensureChannel() {
