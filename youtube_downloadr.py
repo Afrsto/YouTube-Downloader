@@ -28,7 +28,7 @@ import webbrowser
 from pathlib import Path
 
 # ── App identity / updates ────────────────────────────────────────────────────
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.0.0"
 GITHUB_REPO = "Afrsto/YouTube-Downloader"
 GITHUB_LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_UA = f"YouTube-Downloader/{APP_VERSION} (+https://github.com/{GITHUB_REPO})"
@@ -365,6 +365,7 @@ class Downloader:
 
     @staticmethod
     def sanitize(name: str) -> str:
+        name = re.sub(r"\s*prod\.[A-Za-z0-9_-]+", "", name, flags=re.IGNORECASE)
         name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
         return (name or "video")[:120]
 
@@ -462,7 +463,10 @@ class Downloader:
         if fmt == "mp3":
             return "bestaudio[ext=m4a]/bestaudio/best", [f"abr~{quality}", "abr"]
         h = int(quality)
+        # Prefer progressive HTTPS (known filesize) over HLS/m3u8.
         sel = (
+            f"bestvideo[height<={h}][ext=mp4][protocol^=http]+bestaudio[ext=m4a]/"
+            f"bestvideo[height<={h}][protocol^=http]+bestaudio/"
             f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/"
             f"bestvideo[height<={h}]+bestaudio/"
             f"best[height<={h}]/best"
@@ -514,20 +518,41 @@ class Downloader:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(yt_url, download=False)
 
+        duration = None
+        try:
+            duration = float((info or {}).get("duration") or 0) or None
+        except (TypeError, ValueError):
+            duration = None
+
         def _one(entry: dict | None) -> int:
             if not entry:
                 return 0
             n = entry.get("filesize") or entry.get("filesize_approx") or 0
             try:
-                return int(n)
+                n = int(n)
             except (TypeError, ValueError):
-                return 0
+                n = 0
+            if n > 0:
+                return n
+            # Fallback: tbr (kbps) * duration → bytes
+            try:
+                tbr = float(entry.get("tbr") or 0)
+            except (TypeError, ValueError):
+                tbr = 0.0
+            try:
+                dur = float(entry.get("duration") or 0) or duration or 0.0
+            except (TypeError, ValueError):
+                dur = duration or 0.0
+            if tbr > 0 and dur > 0:
+                return int(tbr * 1000.0 / 8.0 * dur)
+            return 0
 
-        total = _one(info)
-        # merged formats: requested_formats list
+        # Prefer summing merged streams; top-level filesize_approx is often audio-only.
         req = (info or {}).get("requested_formats") or []
         if req:
             total = sum(_one(x) for x in req)
+        else:
+            total = _one(info)
         return total if total > 0 else None
 
     def resolve_quality(self, yt_url: str, fmt: str, quality: str) -> tuple[str, str | None]:

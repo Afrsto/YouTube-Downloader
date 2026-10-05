@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Downloadr v{{ version }} · yt-dlp</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <h1>YouTube Downloadr v{{ version }}</h1>
+      <span class="brand-sub">· yt-dlp</span>
+    </div>
+    <div id="sys-status" class="sys-status">checking…</div>
+  </header>
+
+  <main class="card">
+    <div class="row">
+      <label>URL</label>
+      <div class="url-row">
+        <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…">
+        <button id="btn-search" class="btn btn-acc">Search Video</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Format</label>
+      <div class="seg" id="fmt-seg">
+        <button class="seg-btn active" data-fmt="mp3">M4A · audio</button>
+        <button class="seg-btn" data-fmt="mp4">MP4 · video</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Quality</label>
+      <div id="quality-mp3" class="quality">
+        {% for v in audio_bitrates %}
+        <label class="radio"><input type="radio" name="qmp3" value="{{ v }}" {% if v == 320 %}checked{% endif %}> {{ v }} kbps</label>
+        {% endfor %}
+      </div>
+      <div id="quality-mp4" class="quality hidden">
+        <div class="quality-row">
+          {% for v in video_heights[:4] %}
+          <label class="radio"><input type="radio" name="qmp4" value="{{ v }}" {% if v == 1080 %}checked{% endif %}> {% if v >= 2160 %}{{ v }}p (4K){% elif v >= 1440 %}{{ v }}p (2K){% else %}{{ v }}p{% endif %}</label>
+          {% endfor %}
+        </div>
+        <div class="quality-row">
+          {% for v in video_heights[4:] %}
+          <label class="radio"><input type="radio" name="qmp4" value="{{ v }}" {% if v == 1080 %}checked{% endif %}> {% if v >= 2160 %}{{ v }}p (4K){% elif v >= 1440 %}{{ v }}p (2K){% else %}{{ v }}p{% endif %}</label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Save to</label>
+      <div class="url-row">
+        <input id="out-dir" type="text" value="{{ default_out }}">
+      </div>
+    </div>
+  </main>
+
+  <section class="actions">
+    <button id="btn-dl" class="btn btn-acc btn-lg" disabled>⬇ Download</button>
+    <button id="btn-stop" class="btn btn-acc2 btn-lg" disabled>■ Stop</button>
+    <button id="btn-clear" class="btn btn-muted">clear log</button>
+    <div class="progress-wrap">
+      <div class="progress"><div id="progress-bar"></div></div>
+      <div id="progress-label" class="progress-label">idle</div>
+    </div>
+  </section>
+
+  <section class="console">
+    <div class="console-title">console</div>
+    <pre id="log"></pre>
+  </section>
+
+  <footer class="footer">
+    <span>Contact</span>
+    <button id="btn-about" class="btn btn-muted">About</button>
+    <a href="{{ contact_telegram }}" target="_blank" class="btn btn-acc">Open Telegram</a>
+    <a href="{{ contact_discord_user }}" target="_blank" class="btn btn-acc">Open Discord User</a>
+    <a href="{{ contact_discord_server }}" target="_blank" class="btn btn-acc">Open Discord Server</a>
+  </footer>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <h2 id="modal-title"></h2>
+      <p id="modal-body"></p>
+      <div id="modal-search" class="search-results hidden"></div>
+      <div class="modal-actions">
+        <button id="modal-no" class="btn btn-muted">No</button>
+        <button id="modal-yes" class="btn btn-acc">Yes</button>
+        <button id="modal-close" class="btn btn-muted hidden">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.APP = {
+      version: {{ version|tojson }},
+      github: {{ github_url|tojson }},
+    };
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

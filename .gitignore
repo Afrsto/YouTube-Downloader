@@ -15,13 +15,7 @@ Thumbs.db
 Desktop.ini
 Microsoft_WDSI_Submission_Guide_EN_AR.html
 .android-tools/
-android/.gradle/
-android/local.properties
-android/app/build/
-android/.cxx/
 dist_old_*/
-*.apk
-*.aab
 
 # Requires workflow OAuth scope to push; keep local only
 .github/
